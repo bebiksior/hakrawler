@@ -45,7 +45,7 @@ func main() {
 	proxy := flag.String(("proxy"), "", "Proxy URL. E.g. -proxy http://127.0.0.1:8080")
 	timeout := flag.Int("timeout", -1, "Maximum time to crawl each URL from stdin, in seconds.")
 	disableRedirects := flag.Bool("dr", false, "Disable following HTTP redirects.")
-	match := flag.String("match", "", "Match a specific domain apex.")
+	matchApex := flag.Bool("match-apex", false, "Match domain apex.")
 
 	flag.Parse()
 
@@ -78,6 +78,17 @@ func main() {
 			if err != nil {
 				log.Println("Error parsing URL:", err)
 				continue
+			}
+
+			apexDomain, err := getApexDomain(hostname)
+			if err != nil {
+				log.Println("Error getting apex domain:", err)
+				continue
+			}
+
+			match := apexDomain
+			if !*matchApex {
+				match = ""
 			}
 
 			allowed_domains := []string{hostname}
@@ -128,19 +139,19 @@ func main() {
 				abs_link := e.Request.AbsoluteURL(link)
 				if strings.Contains(abs_link, url) || !*inside {
 
-					printResult(link, "href", *showSource, *showWhere, *showJson, results, e, *match)
+					printResult(link, "href", *showSource, *showWhere, *showJson, results, e, match)
 					e.Request.Visit(link)
 				}
 			})
 
 			// find and print all the JavaScript files
 			c.OnHTML("script[src]", func(e *colly.HTMLElement) {
-				printResult(e.Attr("src"), "script", *showSource, *showWhere, *showJson, results, e, *match)
+				printResult(e.Attr("src"), "script", *showSource, *showWhere, *showJson, results, e, match)
 			})
 
 			// find and print all the form action URLs
 			c.OnHTML("form[action]", func(e *colly.HTMLElement) {
-				printResult(e.Attr("action"), "form", *showSource, *showWhere, *showJson, results, e, *match)
+				printResult(e.Attr("action"), "form", *showSource, *showWhere, *showJson, results, e, match)
 			})
 
 			// add the custom headers
@@ -254,13 +265,13 @@ func printResult(link string, sourceName string, showSource bool, showWhere bool
 	whereURL := e.Request.URL.String()
 	if result != "" {
 		parsedUrl, err := url.Parse(result)
-        if err != nil {
-            log.Println("Error parsing URL:", err)
-            return
-        }
-        if match != "" && !strings.HasSuffix(parsedUrl.Hostname(), match) {
-            return
-        }
+		if err != nil {
+			log.Println("Error parsing URL:", err)
+			return
+		}
+		if match != "" && !strings.HasSuffix(parsedUrl.Hostname(), match) {
+			return
+		}
 
 		if showJson {
 			where := ""
@@ -299,4 +310,14 @@ func isUnique(url string) bool {
 	}
 	sm.Store(url, true)
 	return true
+}
+
+// getApexDomain returns the apex domain of a hostname
+func getApexDomain(hostname string) (string, error) {
+	parts := strings.Split(hostname, ".")
+	if len(parts) < 2 {
+		return "", errors.New("Invalid hostname")
+	}
+
+	return parts[len(parts)-2] + "." + parts[len(parts)-1], nil
 }
