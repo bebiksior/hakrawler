@@ -1,4 +1,4 @@
-module github.com/bebiksior/hakrawler2
+module github.com/bebiksior/hakrawler
 
 go 1.16
 
